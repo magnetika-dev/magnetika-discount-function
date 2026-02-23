@@ -1,0 +1,24 @@
+{
+  "cart": {
+    "cost": {
+      "subtotalAmount": { "amount": "814.00", "currencyCode": "MXN" }
+    },
+    "lines": [
+      {
+        "id": "gid://shopify/CartLine/1",
+        "quantity": 100,
+        "cost": {
+          "amountPerQuantity": { "amount": "8.14", "currencyCode": "MXN" }
+        },
+        "merchandise": {
+          "__typename": "ProductVariant",
+          "id": "gid://shopify/ProductVariant/59120875798609",
+          "metafield": {
+            "value": "[{\"minimum_quantity\":1,\"price\":\"8.14\"},{\"minimum_quantity\":100,\"price\":\"7.57\"},{\"minimum_quantity\":300,\"price\":\"7.03\"},{\"minimum_quantity\":1000,\"price\":\"6.55\"},{\"minimum_quantity\":3000,\"price\":\"6.08\"}]"
+          }
+        }
+      }
+    ]
+  },
+  "discount": { "discountClasses": ["PRODUCT"] }
+}

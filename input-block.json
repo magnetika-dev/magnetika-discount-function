@@ -1,0 +1,29 @@
+{
+    "cart":  {
+                 "cost":  {
+                              "subtotalAmount":  {
+                                                     "amount":  "137600.00",
+                                                     "currencyCode":  "USD"
+                                                 }
+                          },
+                 "lines":  [
+                               {
+                                   "id":  "gid://shopify/CartLine/1",
+                                   "quantity":  30000,
+                                   "cost":  {
+                                                "amountPerQuantity":  {
+                                                                          "amount":  "6.88",
+                                                                          "currencyCode":  "USD"
+                                                                      }
+                                            },
+                                   "merchandise":  {
+                                                       "__typename":  "ProductVariant",
+                                                       "id":  "gid://shopify/ProductVariant/59120875798609",
+                                                       "metafield":  {
+                                                                         "value":  "[{\"minimum_quantity\":1,\"price\":\"6.88\"},{\"minimum_quantity\":100,\"price\":\"6.41\"},{\"minimum_quantity\":300,\"price\":\"5.96\"},{\"minimum_quantity\":1000,\"price\":\"5.53\"},{\"minimum_quantity\":3000,\"price\":\"5.14\"},{\"minimum_quantity\":9000,\"price\":\"4.89\"},{\"minimum_quantity\":27000,\"price\":\"3.71\"}]"
+                                                                     }
+                                                   }
+                               }
+                           ]
+             }
+}
