@@ -1,15 +1,29 @@
-app.get("/", (req, res) => {
-  const apiKey = process.env.SHOPIFY_API_KEY;
+import express from "express";
 
-  res.set("Content-Type", "text/html");
-  res.send(`<!doctype html>
+const app = express();
+
+const PORT = process.env.PORT || 3000;
+app.set("trust proxy", 1);
+
+app.get("/health", (_req, res) => {
+  res.status(200).send("ok");
+});
+
+app.get("/", (req, res) => {
+  const apiKey = process.env.SHOPIFY_API_KEY || "";
+
+  res
+    .status(200)
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(`<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Magnetika Volume Discount</title>
 
-    <!-- App Bridge desde CDN de Shopify -->
+    <meta name="shopify-api-key" content="${apiKey}" />
+
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
   </head>
   <body style="font-family: system-ui; padding: 24px;">
@@ -20,23 +34,37 @@ app.get("/", (req, res) => {
     </p>
 
     <script>
-      const params = new URLSearchParams(window.location.search);
-      const host = params.get("host");
+      (function () {
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var host = params.get("host");
+          var apiKey = document.querySelector('meta[name="shopify-api-key"]').content;
 
-      const AppBridge = window['app-bridge'];
+          if (!window.ShopifyAppBridge || !window.ShopifyAppBridge.createApp) {
+            console.error("Shopify App Bridge did not load.");
+            return;
+          }
 
-      if (!AppBridge || !AppBridge.createApp) {
-        console.error("App Bridge no cargó correctamente", AppBridge);
-      } else {
-        const app = AppBridge.createApp({
-          apiKey: ${JSON.stringify(apiKey)},
-          host: host,
-          forceRedirect: true
-        });
+          window.app = window.ShopifyAppBridge.createApp({
+            apiKey: apiKey,
+            host: host,
+            forceRedirect: true
+          });
 
-        console.log("App Bridge OK", app);
-      }
+          console.log("App Bridge initialized OK");
+        } catch (e) {
+          console.error(e);
+        }
+      })();
     </script>
   </body>
 </html>`);
+});
+
+app.post("/webhooks", express.raw({ type: "*/*" }), (_req, res) => {
+  res.status(200).send("ok");
+});
+
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
