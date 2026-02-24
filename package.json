@@ -21,7 +21,7 @@
   "description": "This is a template for building an [extension-only Shopify app](https://shopify.dev/docs/apps/build/app-extensions/build-extension-only-app). It contains the basics for building a Shopify app that uses only app extensions.",
   "main": ".graphqlrc.js",
   "keywords": [],
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@shopify/shopify-api": "^12.3.0",
     "express": "^5.2.1",

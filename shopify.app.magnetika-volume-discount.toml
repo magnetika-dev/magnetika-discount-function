@@ -2,36 +2,24 @@
 
 client_id = "0a9d22574f4b710f3a928136d2b7e92d"
 name = "Magnetika Volume Discount"
-application_url = "http://localhost:3000"
+application_url = "https://magnetika-volume-discount-app.onrender.com"
 embedded = true
 
 [webhooks]
 api_version = "2026-01"
 
 [[webhooks.subscriptions]]
-topics = ["app/uninstalled"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["customers/data_request"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["customers/redact"]
-uri = "/webhooks"
-
-[[webhooks.subscriptions]]
-topics = ["shop/redact"]
-uri = "/webhooks"
+uri = "https://magnetika-volume-discount-app.onrender.com/webhooks"
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_discounts,read_products,write_discounts,write_products"
-optional_scopes = [ ]
+optional_scopes = []
 use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "http://localhost:3000/auth/callback",
-  "http://localhost:3000/api/auth/callback"
+  "https://magnetika-volume-discount-app.onrender.com/auth/callback",
+  "https://magnetika-volume-discount-app.onrender.com/api/auth/callback"
 ]
