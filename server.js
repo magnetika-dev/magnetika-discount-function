@@ -1,30 +1,110 @@
 import express from "express";
+import crypto from "crypto";
 
 const app = express();
 
 const PORT = process.env.PORT || 3000;
 app.set("trust proxy", 1);
-
-// Para leer JSON (si luego lo necesitas)
 app.use(express.json());
 
-// Health
+function base64UrlDecode(input) {
+  const pad = "=".repeat((4 - (input.length % 4)) % 4);
+  const b64 = (input + pad).replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(b64, "base64").toString("utf8");
+}
+
+function verifyShopifySessionToken(token, apiSecret) {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new Error("Invalid JWT format");
+
+  const [headerB64, payloadB64, sigB64] = parts;
+  const data = `${headerB64}.${payloadB64}`;
+
+  const expectedSig = crypto
+    .createHmac("sha256", apiSecret)
+    .update(data)
+    .digest("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+
+  if (expectedSig !== sigB64) throw new Error("Invalid JWT signature");
+
+  const payloadJson = base64UrlDecode(payloadB64);
+  const payload = JSON.parse(payloadJson);
+
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.exp && payload.exp < now) throw new Error("JWT expired");
+  if (payload.nbf && payload.nbf > now) throw new Error("JWT not active yet");
+
+  // Validate audience = API key (recommended)
+  const apiKey =
+    process.env.SHOPIFY_API_KEY ||
+    process.env.SHOPIFY_API_KEY ||
+    process.env.SHOPIFY_API_KEY ||
+    "";
+
+  if (payload.aud && apiKey && payload.aud !== apiKey) {
+    throw new Error("JWT audience mismatch");
+  }
+
+  return payload;
+}
+
+function requireSessionToken(req, res, next) {
+  try {
+    const auth = req.headers.authorization || "";
+    if (!auth.toLowerCase().startsWith("bearer ")) {
+      return res.status(401).json({ ok: false, error: "Missing Bearer token" });
+    }
+
+    const token = auth.slice(7);
+
+    // Accept multiple env var names just in case
+    const secret =
+      process.env.SHOPIFY_API_SECRET ||
+      process.env.SHOPIFY_API_SECRET ||
+      process.env.SHOPIFY_API_SECRET ||
+      "";
+
+    if (!secret) {
+      return res.status(500).json({
+        ok: false,
+        error:
+          "Missing Shopify API secret env var. Set SHOPIFY_API_SECRET (or SHOPIFY_API_SECRET).",
+      });
+    }
+
+    const payload = verifyShopifySessionToken(token, secret);
+    req.shopifySession = payload;
+    return next();
+  } catch (e) {
+    return res.status(401).json({ ok: false, error: String(e.message || e) });
+  }
+}
+
 app.get("/health", (_req, res) => res.status(200).send("ok"));
 
-// Endpoint para probar que el frontend manda Authorization: Bearer <token>
-app.get("/api/ping", (req, res) => {
-  const auth = req.headers.authorization || "";
-  // Solo respondemos y registramos (verificación JWT la podemos agregar después)
+app.get("/api/ping", requireSessionToken, (req, res) => {
   res.status(200).json({
     ok: true,
-    gotAuthorizationHeader: Boolean(auth),
-    authorizationHeaderStartsWithBearer: auth.toLowerCase().startsWith("bearer "),
+    authenticated: true,
+    sessionPreview: {
+      iss: req.shopifySession?.iss,
+      dest: req.shopifySession?.dest,
+      aud: req.shopifySession?.aud,
+      exp: req.shopifySession?.exp,
+      sub: req.shopifySession?.sub,
+    },
   });
 });
 
-// Home embebido (para checks)
 app.get("/", (_req, res) => {
-  const apiKey = process.env.SHOPIFY_API_KEY || "";
+  const apiKey =
+    process.env.SHOPIFY_API_KEY ||
+    process.env.SHOPIFY_API_KEY ||
+    process.env.SHOPIFY_API_KEY ||
+    "";
 
   res
     .status(200)
@@ -36,10 +116,7 @@ app.get("/", (_req, res) => {
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Magnetika Volume Discount</title>
 
-    <!-- Required: App Bridge config via meta -->
     <meta name="shopify-api-key" content="${apiKey}" />
-
-    <!-- Required: latest App Bridge from Shopify CDN -->
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
   </head>
 
@@ -49,9 +126,8 @@ app.get("/", (_req, res) => {
     <p style="opacity:.7">This is the embedded admin page required for Shopify review checks.</p>
 
     <div id="status" style="margin: 12px 0; font-size: 13px;"></div>
-
     <button id="btnToken" style="padding:10px 12px; cursor:pointer;">
-      Probar Session Token (shopify.idToken) y mandar a /api/ping
+      Probar Session Token y autenticar en backend (/api/ping)
     </button>
 
     <pre id="out" style="margin-top:12px; background:#111; color:#ddd; padding:12px; border-radius:8px; overflow:auto;"></pre>
@@ -69,55 +145,43 @@ app.get("/", (_req, res) => {
           outEl.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
         }
 
-        // 1) Confirmar host param
-        var params = new URLSearchParams(window.location.search);
-        var host = params.get("host");
-        if (!host) {
-          setStatus("⚠️ Falta host en la URL. Asegúrate de abrir la app desde Shopify Admin (Apps) y NO en una pestaña directa.", "orange");
-        } else {
-          setStatus("✅ host detectado en URL.", "green");
-        }
-
-        // 2) Con App Bridge nuevo, el objeto importante es window.shopify (no createApp)
-        // Si no existe, normalmente es porque el script no se ejecutó o no está en contexto embebido correcto.
         if (!window.shopify) {
-          console.error("window.shopify is undefined. App Bridge script loaded but global not available.");
-          setStatus("❌ window.shopify NO disponible (App Bridge no inicializó global).", "red");
-        } else {
-          console.log("window.shopify OK:", window.shopify);
-          setStatus("✅ window.shopify disponible (App Bridge OK).", "green");
+          setStatus("❌ window.shopify NO disponible.", "red");
+          return;
         }
+        setStatus("✅ window.shopify disponible (App Bridge OK).", "green");
 
-        // 3) Probar session token y mandarlo al backend
         btn.addEventListener("click", async function () {
           try {
-            if (!window.shopify || typeof window.shopify.idToken !== "function") {
-              setStatus("❌ shopify.idToken() no disponible. (App Bridge no listo).", "red");
-              log({ error: "shopify.idToken not available", shopify: window.shopify || null });
+            if (typeof window.shopify.idToken !== "function") {
+              setStatus("❌ shopify.idToken() no disponible.", "red");
               return;
             }
 
-            setStatus("⏳ Solicitando token con shopify.idToken()...", "orange");
+            setStatus("⏳ Obteniendo token...", "orange");
             const token = await window.shopify.idToken();
 
-            setStatus("✅ Token obtenido. Enviando a /api/ping con Authorization: Bearer ...", "green");
-
+            setStatus("⏳ Enviando a /api/ping con Authorization: Bearer ...", "orange");
             const resp = await fetch("/api/ping", {
               method: "GET",
-              headers: {
-                "Authorization": "Bearer " + token
-              }
+              headers: { "Authorization": "Bearer " + token }
             });
 
             const data = await resp.json();
+
+            if (resp.ok && data && data.authenticated) {
+              setStatus("✅ Backend autenticó el Session Token correctamente.", "green");
+            } else {
+              setStatus("❌ Backend NO autenticó el token (ver output).", "red");
+            }
+
             log({
               tokenPreview: token ? (token.slice(0, 20) + "...") : null,
+              responseStatus: resp.status,
               apiPingResponse: data
             });
-
           } catch (e) {
-            console.error(e);
-            setStatus("❌ Error pidiendo token o llamando /api/ping", "red");
+            setStatus("❌ Error", "red");
             log({ error: String(e) });
           }
         });
@@ -127,11 +191,8 @@ app.get("/", (_req, res) => {
 </html>`);
 });
 
-// Webhooks endpoint
-app.post("/webhooks", express.raw({ type: "*/*" }), (_req, res) => {
-  res.status(200).send("ok");
-});
+app.post("/webhooks", express.raw({ type: "*/*" }), (_req, res) =>
+  res.status(200).send("ok")
+);
 
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+app.listen(PORT, () => console.log("Server running on port " + PORT));
